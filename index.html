@@ -1,0 +1,1721 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <base target="_top">
+  <!-- viewport は コード.gs の addMetaTag() で付与しています（GASは<meta>を除去するため） -->
+  <style>
+    :root{
+      --bg:#f2f3f7; --card:#ffffff; --fg:#1d1d1f; --sub:#6b6f76; --line:#e0e2e8;
+      --accent:#0a6cff; --accent-soft:#eaf2ff; --danger:#d0342c; --danger-soft:#fdecea;
+      --warn:#b26a00; --warn-soft:#fff4e0; --ok:#1e8e3e; --ok-soft:#e6f4ea;
+      --purple:#7b34c9; --purple-soft:#f3e8fd;
+      --shadow:0 1px 3px rgba(0,0,0,.08), 0 4px 14px rgba(0,0,0,.05);
+      --tap:48px;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#111318; --card:#1b1e25; --fg:#e8eaed; --sub:#9aa0a6; --line:#2c3038;
+        --accent:#7aa9ff; --accent-soft:#1a2740; --danger:#ff8a80; --danger-soft:#3a1f1d;
+        --warn:#ffca7a; --warn-soft:#3a2d16; --ok:#81c995; --ok-soft:#17301f;
+        --purple:#c9a3f0; --purple-soft:#2a1c3c;
+        --shadow:0 1px 3px rgba(0,0,0,.4);
+      }
+    }
+    *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+    html,body{margin:0;padding:0}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Segoe UI",Roboto,sans-serif;
+      background:var(--bg); color:var(--fg); font-size:15px; line-height:1.5;
+      padding:0 0 calc(100px + env(safe-area-inset-bottom)); -webkit-text-size-adjust:100%;
+    }
+    .wrap{max-width:640px;margin:0 auto;padding:0 12px}
+
+    /* ---------- ヘッダー ---------- */
+    header{position:sticky;top:0;z-index:20;background:var(--bg);
+      padding:calc(8px + env(safe-area-inset-top)) 0 8px;border-bottom:1px solid var(--line)}
+    h1{font-size:16px;margin:0;text-align:center}
+    .status{font-size:11px;color:var(--sub);text-align:center;margin-top:2px}
+    .tabs{display:flex;background:var(--line);border-radius:10px;padding:3px;margin-top:8px;gap:3px}
+    .tab{flex:1;min-height:46px;border:0;background:transparent;border-radius:8px;
+      font-size:14px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit}
+    .tab[aria-pressed="true"]{background:var(--card);color:var(--accent);box-shadow:var(--shadow)}
+    .tab[data-tab="stocktake"][aria-pressed="true"]{color:var(--purple)}
+    .tab .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--danger);margin-left:5px;vertical-align:middle}
+
+    .ctlrow{display:flex;gap:8px;align-items:stretch;margin-top:8px}
+    .ctl{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 8px;min-width:0}
+    .ctl .k{font-size:10px;color:var(--sub);font-weight:700;letter-spacing:.03em}
+    .ctl .v{display:flex;align-items:center;gap:4px;margin-top:2px}
+    .ctl .v b{font-size:16px}
+    .ctl .v small{font-size:10px;color:var(--sub)}
+    .mini{width:34px;height:34px;border:1px solid var(--line);background:var(--bg);color:var(--accent);
+      border-radius:8px;font-size:17px;font-weight:700;cursor:pointer;font-family:inherit;padding:0;flex:0 0 auto}
+    .pinput{width:46px;height:34px;border:1px solid var(--accent);border-radius:8px;background:var(--card);
+      color:var(--fg);text-align:center;font-size:15px;font-weight:700;font-family:inherit}
+    .pinput::-webkit-outer-spin-button,.pinput::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+
+    .chips{display:flex;gap:6px;margin-top:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+    .chips::-webkit-scrollbar{display:none}
+    .chip{flex:0 0 auto;min-height:44px;padding:0 14px;border-radius:22px;border:1px solid var(--line);
+      background:var(--card);color:var(--sub);font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap}
+    .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+    .chip.cyc[aria-pressed="true"]{background:var(--ok);border-color:var(--ok)}
+
+    /* ---------- カード ---------- */
+    .card{background:var(--card);border-radius:14px;padding:12px 14px;margin:10px 0;box-shadow:var(--shadow)}
+    .card.alert{border-left:4px solid var(--danger)}
+    .card.uncounted{border-left:4px solid var(--warn)}
+    .card.diff{border-left:4px solid var(--purple)}
+    .title{font-size:15px;font-weight:700;display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
+    .title span:first-child{flex:1;min-width:0;word-break:break-word}
+    .badge{flex:0 0 auto;font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap}
+    .b-danger{background:var(--danger-soft);color:var(--danger)}
+    .b-warn{background:var(--warn-soft);color:var(--warn)}
+    .b-ok{background:var(--ok-soft);color:var(--ok)}
+    .b-purple{background:var(--purple-soft);color:var(--purple)}
+
+    .predline{display:flex;justify-content:space-between;align-items:baseline;
+      font-size:12px;color:var(--sub);margin:8px 0 4px;gap:8px}
+    .predline .big{font-size:15px;font-weight:700;color:var(--fg)}
+
+    .row{display:flex;align-items:center;gap:8px;margin-top:8px}
+    .row .label{font-size:12px;color:var(--sub);flex:0 0 66px}
+    .num{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+    .num button{width:var(--tap);height:var(--tap);border:0;background:transparent;color:var(--accent);
+      font-size:22px;font-weight:700;cursor:pointer;font-family:inherit;line-height:1}
+    .num button:active{background:var(--accent-soft)}
+    .num input{width:64px;height:var(--tap);border:0;border-left:1px solid var(--line);border-right:1px solid var(--line);
+      background:var(--card);color:var(--fg);text-align:center;font-size:18px;font-weight:700;font-family:inherit}
+    .num input::-webkit-outer-spin-button,.num input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+    .num input[type=number]{-moz-appearance:textfield}
+    .num input:focus{outline:2px solid var(--accent);outline-offset:-2px}
+    .unit{font-size:13px;color:var(--sub)}
+
+    .orderbox{margin-top:10px;background:var(--accent-soft);border-radius:10px;padding:8px;
+      display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .orderbox .label{font-size:12px;font-weight:700;color:var(--accent);flex:0 0 auto}
+    .oval{font-size:22px;font-weight:800;min-width:58px;text-align:center;color:var(--fg)}
+    .oval.zero{color:var(--sub)}
+    .manual{font-size:10px;color:var(--warn);font-weight:700}
+    .diffbox{margin-top:10px;background:var(--purple-soft);border-radius:10px;padding:8px 12px;
+      display:flex;align-items:center;justify-content:space-between;font-size:13px}
+    .diffbox b{font-size:17px}
+    .dateinput{height:var(--tap);border:1px solid var(--line);border-radius:10px;background:var(--card);
+      color:var(--fg);font-size:15px;font-family:inherit;padding:0 10px;min-width:150px;flex:1}
+    .dateinput:focus{outline:2px solid var(--accent);outline-offset:-2px}
+    .expline{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--sub)}
+    .expline .tag{font-weight:700;padding:2px 7px;border-radius:9px;font-size:11px}
+    .t-exp{background:var(--danger-soft);color:var(--danger)}
+    .t-warn{background:var(--warn-soft);color:var(--warn)}
+    .t-ok{background:var(--ok-soft);color:var(--ok)}
+    .t-none{background:var(--line);color:var(--sub)}
+    .card.expired{border-left:4px solid var(--danger)}
+
+    details{margin-top:8px}
+    summary{font-size:12px;color:var(--sub);cursor:pointer;min-height:32px;display:flex;align-items:center}
+    .meta{font-size:12px;color:var(--sub);line-height:1.9;padding-top:4px;border-top:1px dashed var(--line);margin-top:4px}
+    .meta i{font-style:normal;color:var(--fg);font-weight:600}
+    .inline-warn{font-size:12px;color:var(--warn);background:var(--warn-soft);border-radius:8px;padding:6px 8px;margin-top:8px}
+
+    /* ---------- フッター ---------- */
+    footer{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);
+      border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+      box-shadow:0 -2px 12px rgba(0,0,0,.06)}
+    .foot{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:10px}
+    .foot .sum{flex:1;font-size:12px;color:var(--sub);line-height:1.35}
+    .foot .sum b{font-size:16px;color:var(--fg)}
+    .btn{min-height:var(--tap);padding:0 18px;border:0;border-radius:12px;font-size:15px;font-weight:700;
+      cursor:pointer;font-family:inherit;background:var(--accent);color:#fff}
+    .btn.purple{background:var(--purple)}
+    .btn:disabled{opacity:.5;cursor:default}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+
+    /* ---------- モーダル / トースト ---------- */
+    .overlay{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+    .sheet{background:var(--card);width:100%;max-width:640px;border-radius:16px 16px 0 0;
+      padding:16px 16px calc(16px + env(safe-area-inset-bottom));max-height:86vh;overflow:auto}
+    .sheet h2{font-size:16px;margin:0 0 4px}
+    .sheet .note{font-size:12px;color:var(--sub);margin-bottom:10px}
+    .olist{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:10px 0}
+    .olist div{display:flex;justify-content:space-between;gap:10px;padding:9px 12px;font-size:14px;border-top:1px solid var(--line)}
+    .olist div:first-child{border-top:0}
+    .olist b{flex:0 0 auto}
+    .toggle{display:flex;align-items:flex-start;gap:10px;font-size:13px;
+      background:var(--bg);border-radius:10px;padding:10px;margin:10px 0;cursor:pointer}
+    .toggle input{width:22px;height:22px;flex:0 0 auto;margin:0;accent-color:var(--accent)}
+    .toggle small{display:block;color:var(--sub);font-size:11px;margin-top:2px}
+    .actions{display:flex;gap:8px;margin-top:12px}
+    .actions .btn{flex:1}
+
+    #toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:60;
+      background:#1d1d1f;color:#fff;font-size:13px;padding:10px 16px;border-radius:10px;max-width:88vw;
+      box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .2s}
+    #toast.show{opacity:.96}
+    #toast.err{background:var(--danger)}
+
+    .empty{text-align:center;color:var(--sub);font-size:13px;padding:40px 0}
+    .skeleton{height:120px;background:var(--card);border-radius:14px;margin:10px 0;animation:pulse 1.3s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:.55}50%{opacity:.9}}
+    .banner{border-radius:10px;padding:10px 12px;font-size:13px;margin:10px 0;display:none}
+    .banner.err{background:var(--danger-soft);color:var(--danger)}
+    .banner.info{background:var(--purple-soft);color:var(--purple);display:flex;align-items:center;gap:10px;justify-content:space-between}
+    .banner.warn{background:var(--warn-soft);color:var(--warn);line-height:1.6}
+    .banner.warn b{display:block;font-size:14px;margin-bottom:3px}
+    .banner .btn{min-height:38px;font-size:13px;padding:0 12px;background:var(--purple);flex:0 0 auto}
+
+    /* ==================== 発注書（画面プレビュー / 印刷） ====================
+       画面では灰色の背景に「紙」を並べ、印刷では紙だけがA4に出るようにします。
+       発注先ごとに page-break-after で改ページします。 */
+    #printRoot{display:none}
+    body.printing{overflow:hidden}
+    body.printing #printRoot{
+      display:block;position:fixed;inset:0;z-index:100;background:#8a8a92;
+      overflow:auto;padding:12px 8px calc(12px + env(safe-area-inset-bottom));
+      -webkit-overflow-scrolling:touch;
+    }
+    .printbar{position:sticky;top:0;z-index:2;display:flex;gap:8px;
+      width:190mm;max-width:100%;margin:0 auto 12px}
+    .printbar .btn{flex:1}
+    .printbar .btn.close{background:#5f6368}
+    .printhint{width:190mm;max-width:100%;margin:0 auto 10px;color:#fff;font-size:12px;line-height:1.5}
+
+    .paper{
+      background:#fff;color:#000;width:190mm;max-width:100%;
+      margin:0 auto 14px;padding:12mm;box-shadow:0 2px 12px rgba(0,0,0,.35);
+      font-size:10.5pt;line-height:1.5;
+      font-family:"Hiragino Mincho ProN","Yu Mincho","MS PMincho",serif;
+    }
+    .paper *{box-sizing:border-box}
+    .p-head{display:flex;justify-content:space-between;align-items:flex-start;font-size:9.5pt}
+    .p-title{text-align:center;font-size:20pt;font-weight:700;letter-spacing:.7em;
+      margin:6mm 0 7mm;padding-left:.7em}
+    .p-cols{display:flex;gap:8mm;align-items:flex-start;margin-bottom:6mm}
+    .p-to{flex:1;min-width:0}
+    .p-to .name{font-size:14pt;font-weight:700;border-bottom:1.5px solid #000;padding-bottom:2mm;margin-bottom:2mm}
+    .p-to .sub{font-size:9.5pt;line-height:1.7}
+    .p-from{flex:0 0 68mm;font-size:9.5pt;line-height:1.7;position:relative}
+    .p-from .fname{font-size:11.5pt;font-weight:700}
+    .p-seal{position:absolute;right:0;top:0;width:17mm;height:17mm;border:1px solid #888;
+      border-radius:2px;color:#888;font-size:7.5pt;display:flex;align-items:center;justify-content:center}
+    .p-lead{font-size:10pt;margin-bottom:4mm}
+
+    table.p-tbl{width:100%;border-collapse:collapse;font-size:10pt}
+    table.p-tbl th,table.p-tbl td{border:1px solid #000;padding:1.8mm 2mm;vertical-align:middle}
+    table.p-tbl th{background:#eee;font-weight:700;text-align:center;font-size:9.5pt}
+    table.p-tbl td.n{text-align:center;width:9mm}
+    table.p-tbl td.code{width:30mm;font-size:9pt;word-break:break-all}
+    table.p-tbl td.qty{text-align:right;width:20mm;white-space:nowrap}
+    table.p-tbl td.unit{text-align:center;width:14mm}
+    table.p-tbl td.money{text-align:right;width:24mm;white-space:nowrap}
+    table.p-tbl td.inner{font-size:8.5pt;color:#333}
+    table.p-tbl tr.total td{background:#f4f4f4;font-weight:700;text-align:right}
+    .p-note{margin-top:5mm;font-size:9.5pt}
+    .p-note .box{border:1px solid #000;min-height:18mm;padding:2mm;margin-top:1.5mm}
+    .p-foot{margin-top:5mm;font-size:8.5pt;color:#444;text-align:right}
+    .p-warn{border:1px solid #c00;color:#c00;padding:2mm;font-size:9pt;margin-bottom:4mm}
+
+    /* 取引先様式（2段組み） */
+    .p-head2{display:flex;justify-content:space-between;align-items:flex-start;gap:8mm}
+    .p-to2{flex:1;min-width:0}
+    .p-to2 .nm{font-size:15pt;font-weight:700}
+    .p-to2 .ln{font-size:9.5pt;margin-top:1.5mm}
+    .p-from2{flex:0 0 76mm;font-size:9.5pt;line-height:1.65}
+    .p-from2 .dt{font-size:10.5pt;margin-bottom:1mm}
+    .p-from2 .fn{font-size:12pt;font-weight:700}
+    .p-stamp{display:flex;gap:2mm;justify-content:flex-end;margin-bottom:3mm}
+    .p-stamp div{width:17mm;height:15mm;border:1px solid #000}
+    .p-rule{border:0;border-top:1.2px solid #000;margin:4mm 0 0}
+
+    table.p-two{width:100%;border-collapse:collapse;font-size:9.5pt;margin-top:3mm}
+    table.p-two th{border-bottom:1px solid #000;padding:1mm 2mm;font-weight:700;font-size:9pt;text-align:center}
+    table.p-two th .b{display:block;font-weight:400;font-size:8.5pt;color:#333}
+    table.p-two td{padding:1.6mm 2mm;vertical-align:top}
+    table.p-two tr.item td{border-top:1px solid #bbb}
+    table.p-two tr.item.first td{border-top:0}
+    table.p-two td .b{display:block;font-size:8.5pt;color:#333;margin-top:.6mm}
+    table.p-two td.n{width:7mm;text-align:center}
+    table.p-two td.qty{width:31mm;text-align:center;white-space:nowrap}
+    table.p-two td.qty .b{white-space:normal}
+    table.p-two td.price{width:16mm;text-align:center}
+    table.p-two td.money{width:26mm;text-align:right}
+    table.p-two tr.sum td{border-top:1.2px solid #000;font-weight:700;text-align:right;padding-top:2mm}
+
+    /* FAX送付状 */
+    .fax-grid{width:100%;border-collapse:collapse;font-size:10.5pt;margin-bottom:6mm}
+    .fax-grid th,.fax-grid td{border:1px solid #000;padding:2.5mm 3mm}
+    .fax-grid th{background:#eee;width:28mm;text-align:left;font-weight:700}
+    .fax-msg{border:1px solid #000;padding:3mm;min-height:40mm;font-size:10.5pt}
+
+    @media print{
+      body.printing > *:not(#printRoot){display:none !important}
+      body.printing{overflow:visible}
+      body.printing #printRoot{position:static;padding:0;background:#fff;overflow:visible}
+      .printbar,.printhint{display:none !important}
+      .paper{width:auto;max-width:none;margin:0;padding:0;box-shadow:none;
+        page-break-after:always;break-after:page}
+      .paper:last-child{page-break-after:auto;break-after:auto}
+      @page{size:A4 portrait;margin:14mm}
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>ENFit PEG 発注アシスト</h1>
+    <div class="status" id="status">読み込み中…</div>
+
+    <div class="tabs" role="group" aria-label="モード">
+      <button class="tab" data-tab="order" aria-pressed="true">発注</button>
+      <button class="tab" data-tab="stocktake" aria-pressed="false">棚卸<span class="dot" id="st-dot" hidden></span></button>
+    </div>
+
+    <div class="ctlrow" id="ctlrow">
+      <div class="ctl">
+        <div class="k" id="cyc-key">発注サイクル</div>
+        <div class="v"><b id="cyc-label">—</b><small id="cyc-sub"></small></div>
+      </div>
+      <div class="ctl">
+        <div class="k">対象患者数</div>
+        <div class="v" id="pat-v"></div>
+      </div>
+    </div>
+
+    <div class="chips" id="cyc-chips" role="group" aria-label="発注サイクル"></div>
+    <div class="chips" id="filters" role="group" aria-label="表示フィルタ"></div>
+    <div class="chips" id="doc-actions" role="group" aria-label="発注書"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="banner err" id="banner"></div>
+  <div class="banner warn" id="cal-banner"></div>
+  <div class="banner info" id="st-banner"></div>
+  <div id="list">
+    <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+  </div>
+</main>
+
+<footer>
+  <div class="foot">
+    <div class="sum" id="sum">計算中…</div>
+    <button class="btn" id="submit" disabled>確定する</button>
+  </div>
+</footer>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="modalRoot"></div>
+<div id="printRoot"></div>
+
+<script>
+/* =======================================================================
+   状態は全てここ。DOM の表示文字列から数値を読み戻すことはしない。
+   ======================================================================= */
+var state = {
+  items: [], meta: {}, tab: 'order', filter: 'all',
+  saving: false, loaded: false
+};
+var refs = {};
+var DRAFT_KEY = 'enfit_draft_v3';
+
+/* ---------------- DOMヘルパー（textContent固定でXSSを避ける） ---------- */
+function el(tag, cls, text){
+  var n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = String(text);
+  return n;
+}
+function $(id){ return document.getElementById(id); }
+function clear(n){ while(n.firstChild) n.removeChild(n.firstChild); }
+
+function toast(msg, isErr){
+  var t = $('toast');
+  t.textContent = msg;
+  t.className = isErr ? 'show err' : 'show';
+  clearTimeout(t._t);
+  t._t = setTimeout(function(){ t.className = ''; }, isErr ? 5200 : 2600);
+}
+function banner(msg){
+  var b = $('banner');
+  if (!msg){ b.style.display='none'; return; }
+  b.textContent = msg; b.style.display='block';
+}
+
+/* ---------------- 計算（サーバーと同じ式） ------------------------------ */
+function effectiveStock(it){
+  if (it.stock !== '' && it.stock !== null && it.stock !== undefined) return Number(it.stock);
+  return (it.predicted === null || it.predicted === undefined) ? null : it.predicted;
+}
+/** 不足している本数 */
+function neededUnits(it){
+  var e = effectiveStock(it);
+  if (e === null) return 0;
+  return Math.max(0, Math.ceil(it.target - e - 1e-9));
+}
+/** 発注する箱（ケース）数。入数1の品目は本数と同じ */
+function suggestPacks(it){
+  var n = neededUnits(it);
+  var ps = Math.max(1, it.packSize || 1);
+  return (n > 0) ? Math.ceil(n / ps - 1e-9) : 0;
+}
+/** 実際に届く本数 */
+function orderUnits(it){ return (it.packs || 0) * Math.max(1, it.packSize || 1); }
+/** 発注数の表示文字列。「1箱(10本)」または「3本」 */
+function packLabel(it){
+  var ps = Math.max(1, it.packSize || 1);
+  if (ps <= 1) return it.packs + ' 本';
+  return it.packs + ' ' + (it.packUnit || '箱') + '（' + orderUnits(it) + '本）';
+}
+function partyOf(it){ return it.party || '（発注先未設定）'; }
+function expLevel(it){ return (it.expiryStatus && it.expiryStatus.level) || 'none'; }
+function expDays(it){ return (it.expiryStatus && it.expiryStatus.days); }
+function expText(it){
+  var lv = expLevel(it), d = expDays(it);
+  if (lv === 'none') return { tag:'未登録', cls:'t-none', text:'棚卸のときに期限を入れてください' };
+  if (lv === 'expired') return { tag:'期限切れ', cls:'t-exp', text:it.expiryLabel + '（' + (-d) + '日超過）' };
+  if (lv === 'warn')    return { tag:'期限間近', cls:'t-warn', text:it.expiryLabel + '（あと' + d + '日）' };
+  return { tag:'期限OK', cls:'t-ok', text:it.expiryLabel + '（あと' + d + '日）' };
+}
+function yen(n){
+  if (n === null || n === undefined) return '—';
+  return '¥' + Number(n).toLocaleString('ja-JP');
+}
+function isCounted(it){ return it.stock !== '' && it.stock !== null && it.stock !== undefined; }
+function stockoutDaysOf(it){
+  var e = effectiveStock(it);
+  if (e === null || !(it.effRate > 0)) return null;
+  return Math.floor(e / (it.effRate / 7));
+}
+function isLow(it){
+  var e = effectiveStock(it);
+  if (e === null) return false;
+  var d = stockoutDaysOf(it);
+  return e < it.target * 0.5 || (d !== null && d <= Math.max(3, it.leadDays + 1));
+}
+function isTaken(it){ return it.take !== '' && it.take !== null && it.take !== undefined; }
+function takeDiff(it){
+  if (!isTaken(it)) return null;
+  return Math.round((Number(it.take) - (it.predicted === null ? 0 : it.predicted)) * 10) / 10;
+}
+
+/* ---------------- 読み込み --------------------------------------------- */
+function boot(){
+  google.script.run
+    .withSuccessHandler(onLoaded)
+    .withFailureHandler(function(e){
+      clear($('list'));
+      banner('データを読み込めませんでした：' + e.message);
+      $('sum').textContent = '—';
+    })
+    .getBootstrapData();
+}
+
+function onLoaded(res){
+  var prev = {};
+  state.items.forEach(function(it){ prev[it.id] = { stock: it.stock, packs: it.packs, manual: it.manual, take: it.take, expiryDraft: it.expiryDraft }; });
+
+  state.meta = res.meta;
+  state.items = res.items.map(function(it){
+    var p = prev[it.id] || {};
+    it.stock = (p.stock === undefined) ? '' : p.stock;
+    it.take  = (p.take  === undefined) ? '' : p.take;
+    it.expiryDraft = (p.expiryDraft === undefined) ? '' : p.expiryDraft;
+    it.manual = !!p.manual;
+    it.packs = p.packs || 0;
+    return it;
+  });
+  state.loaded = true;
+  if (!Object.keys(prev).length) restoreDraft();
+  state.items.forEach(function(it){ if(!it.manual) it.packs = suggestPacks(it); });
+
+  renderHeader();
+  renderList();
+  $('submit').disabled = false;
+}
+
+/* ---------------- ヘッダー描画 ------------------------------------------ */
+function renderHeader(){
+  var m = state.meta;
+
+  // 状態行
+  var s = $('status'); clear(s);
+  var txt = m.lastOrderLabel
+    ? '前回発注 ' + m.lastOrderLabel + '（' + m.lastOrderDays + '日経過）'
+    : '初回起動 — カウントして確定すると学習が始まります';
+  s.appendChild(document.createTextNode(txt));
+
+  // タブ
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(b){
+    b.setAttribute('aria-pressed', String(b.dataset.tab === state.tab));
+  });
+  $('st-dot').hidden = !m.stocktake.due;
+
+  // 左パネル：発注タブは発注サイクル、棚卸タブは前回の棚卸日
+  if (state.tab === 'order'){
+    $('cyc-key').textContent = '発注サイクル';
+    $('cyc-label').textContent = m.cycle.label;
+    $('cyc-sub').textContent = m.cycle.weekdayLabel
+      ? '（' + m.cycle.weekdayLabel + '・次回まで' + m.cycle.cycleDays + '日）'
+      : '（' + m.cycle.cycleDays + '日間隔）';
+  } else {
+    $('cyc-key').textContent = '前回の棚卸';
+    $('cyc-label').textContent = m.stocktake.lastLabel ? m.stocktake.lastLabel.slice(5, 10) : '未実施';
+    $('cyc-sub').textContent = (m.stocktake.elapsed === null)
+      ? '（' + m.stocktake.cycleDays + '日ごと）'
+      : '（' + m.stocktake.elapsed + '日前・' + m.stocktake.cycleDays + '日ごと）';
+  }
+
+  var pv = $('pat-v'); clear(pv);
+  if (m.patients.source === '手入力'){
+    var minus = el('button','mini','−'); minus.type='button'; minus.setAttribute('aria-label','患者数を1減らす');
+    var inp = document.createElement('input');
+    inp.type='number'; inp.min='0'; inp.className='pinput'; inp.inputMode='numeric';
+    inp.value = m.patients.count; inp.setAttribute('aria-label','対象患者数');
+    var plus = el('button','mini','＋'); plus.type='button'; plus.setAttribute('aria-label','患者数を1増やす');
+    minus.onclick = function(){ commitPatients(Math.max(0, Number(inp.value||0) - 1)); };
+    plus.onclick  = function(){ commitPatients(Number(inp.value||0) + 1); };
+    inp.onchange  = function(){ commitPatients(inp.value); };
+    pv.appendChild(minus); pv.appendChild(inp); pv.appendChild(plus);
+    pv.appendChild(el('small', null, '人'));
+  } else {
+    pv.appendChild(el('b', null, m.patients.count));
+    pv.appendChild(el('small', null, '人（患者名簿から）'));
+  }
+
+  // サイクル選択チップ
+  var cc = $('cyc-chips'); clear(cc);
+  if (state.tab === 'order'){
+    m.cycle.options.forEach(function(opt){
+      if (opt === 'カスタム' && m.cycle.label !== 'カスタム') return;
+      var b = el('button','chip cyc', opt);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(opt === m.cycle.label));
+      b.onclick = function(){ commitCycle(opt); };
+      cc.appendChild(b);
+    });
+  }
+
+  // フィルタチップ
+  var fc = $('filters'); clear(fc);
+  var filters = (state.tab === 'order')
+    ? [['all','すべて'],['need','要発注'],['uncounted','未計測'],['low','在庫僅少'],['expiry','期限注意']]
+    : [['all','すべて'],['untaken','未カウント'],['gap','差異あり'],['noexp','期限未登録']];
+  if (state.filter !== 'all' && !filters.some(function(f){ return f[0] === state.filter; })) state.filter = 'all';
+  filters.forEach(function(f){
+    var b = el('button','chip', f[1]);
+    b.type='button';
+    b.setAttribute('aria-pressed', String(f[0] === state.filter));
+    b.onclick = function(){ state.filter = f[0]; renderHeader(); renderList(); };
+    fc.appendChild(b);
+  });
+
+  // 発注書アクション
+  var da = $('doc-actions'); clear(da);
+  if (state.tab === 'order'){
+    var prev = el('button','chip','🖨 発注書プレビュー'); prev.type='button';
+    prev.onclick = function(){
+      var docs = buildDocsLocal();
+      if (!docs.length){ toast('発注数が0本です', true); return; }
+      openPrint(docs, state.meta.facility, { draft: true });
+    };
+    var past = el('button','chip','過去の発注書'); past.type='button';
+    past.onclick = openPastDocuments;
+    da.appendChild(prev); da.appendChild(past);
+    da.style.display = 'flex';
+  } else {
+    da.style.display = 'none';
+  }
+
+  // 患者数の設定ミス警告
+  //   基準患者数は「その消費ペースが成り立っていたときの患者数」。
+  //   ここが実患者数と大きくズレていると、発注数が桁違いになります。
+  var cb = $('cal-banner'); clear(cb);
+  var pr = m.patients.ratio;
+  if (m.patients.scaledItems > 0 && pr !== null && (pr >= 3 || pr <= 0.34)){
+    cb.appendChild(el('b', null, '⚠ 患者数の設定を確認してください'));
+    cb.appendChild(el('div', null,
+      '対象患者数 ' + m.patients.count + '人 に対して、基準患者数が ' + m.patients.base + '人 です。'
+      + 'このままだと消費ペースが ' + pr + '倍 されて、発注数が実態より'
+      + (pr >= 3 ? '大きく' : '小さく') + 'なります。'));
+    cb.appendChild(el('div', null,
+      '「基準患者数」は“今の人数”ではなく“その消費ペースが成り立っていたときの人数”です。'
+      + '分からなければ運用設定シートで対象患者数と同じ値（' + m.patients.count + '）にしてください。'));
+    cb.style.display = 'block';
+  } else {
+    cb.style.display = 'none';
+  }
+
+  // 棚卸バナー
+  var sb = $('st-banner'); clear(sb);
+  if (state.tab === 'order' && state.meta.stocktake.due){
+    var msg = state.meta.stocktake.lastLabel
+      ? '前回の棚卸から ' + state.meta.stocktake.elapsed + '日経過しました。月1回の棚卸をお願いします。'
+      : 'まだ棚卸をしていません。最初の棚卸で在庫の基準を合わせましょう。';
+    sb.appendChild(el('span', null, msg));
+    var go = el('button','btn','棚卸へ'); go.type='button';
+    go.onclick = function(){ switchTab('stocktake'); };
+    sb.appendChild(go);
+    sb.style.display = 'flex';
+  } else {
+    sb.style.display = 'none';
+  }
+}
+
+function switchTab(tab){
+  if (state.tab === tab) return;
+  state.tab = tab;
+  state.filter = 'all';
+  renderHeader();
+  renderList();
+}
+Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(b){
+  b.onclick = function(){ if (state.loaded) switchTab(b.dataset.tab); };
+});
+
+function commitCycle(label){
+  if (state.saving) return;
+  state.saving = true;
+  google.script.run
+    .withSuccessHandler(function(res){ state.saving=false; onLoaded(res); toast('発注サイクルを「'+label+'」にしました'); })
+    .withFailureHandler(function(e){ state.saving=false; toast('変更できませんでした：'+e.message, true); })
+    .setCycle(label);
+}
+function commitPatients(v){
+  if (state.saving) return;
+  var n = Math.max(0, Math.floor(Number(v) || 0));
+  state.saving = true;
+  google.script.run
+    .withSuccessHandler(function(res){ state.saving=false; onLoaded(res); toast('対象患者数を ' + n + '人 にしました'); })
+    .withFailureHandler(function(e){ state.saving=false; toast(e.message, true); renderHeader(); })
+    .setPatientCount(n);
+}
+
+/* ---------------- リスト描画 -------------------------------------------- */
+function visibleItems(){
+  return state.items.filter(function(it){
+    if (state.tab === 'order'){
+      if (state.filter === 'need')      return it.packs > 0;
+      if (state.filter === 'uncounted') return !isCounted(it);
+      if (state.filter === 'low')       return isLow(it);
+      if (state.filter === 'expiry')    return expLevel(it) === 'expired' || expLevel(it) === 'warn';
+    } else {
+      if (state.filter === 'untaken')   return !isTaken(it);
+      if (state.filter === 'gap')       { var d = takeDiff(it); return d !== null && Math.abs(d) >= 1; }
+      if (state.filter === 'noexp')     return expLevel(it) === 'none';
+    }
+    return true;
+  });
+}
+
+function renderList(){
+  var list = $('list');
+  clear(list);
+  refs = {};
+  var items = visibleItems();
+  if (!items.length){
+    list.appendChild(el('div','empty','該当する品目はありません'));
+  } else {
+    items.forEach(function(it){
+      list.appendChild(state.tab === 'order' ? buildOrderCard(it) : buildTakeCard(it));
+    });
+  }
+  renderSummary();
+}
+
+/** 数値入力（− [ ] ＋）を作る共通部品 */
+function numField(value, ariaLabel, onStep, onInput, onBlur, placeholder){
+  var box = el('div','num');
+  var minus = el('button', null, '−'); minus.type='button'; minus.setAttribute('aria-label', ariaLabel+'を1減らす');
+  var input = document.createElement('input');
+  input.type='number'; input.min='0'; input.step='1';
+  input.inputMode='numeric'; input.pattern='[0-9]*';
+  input.placeholder = placeholder || '未計測'; input.value = value;
+  input.setAttribute('aria-label', ariaLabel);
+  var plus = el('button', null, '＋'); plus.type='button'; plus.setAttribute('aria-label', ariaLabel+'を1増やす');
+  box.appendChild(minus); box.appendChild(input); box.appendChild(plus);
+  minus.onclick = function(){ onStep(-1); };
+  plus.onclick  = function(){ onStep(+1); };
+  input.oninput = function(){ onInput(input.value); };
+  input.onblur  = function(){ onBlur(); };
+  return { box: box, input: input };
+}
+
+/* ---- 発注カード ---- */
+function buildOrderCard(it){
+  var card = el('div','card');
+  var r = refs[it.id] = { card: card };
+
+  var title = el('div','title');
+  title.appendChild(el('span', null, it.name));
+  r.badge = el('span','badge');
+  title.appendChild(r.badge);
+  card.appendChild(title);
+
+  var pl = el('div','predline');
+  var left = el('span');
+  left.appendChild(document.createTextNode('AI予測在庫 '));
+  r.pred = el('span','big','—');
+  left.appendChild(r.pred);
+  left.appendChild(document.createTextNode(' 本'));
+  pl.appendChild(left);
+  r.basis = el('span');
+  pl.appendChild(r.basis);
+  card.appendChild(pl);
+
+  var srow = el('div','row');
+  srow.appendChild(el('span','label','実測在庫'));
+  var f = numField(it.stock, it.name + ' の実測在庫',
+    function(d){ stepStock(it, d); },
+    function(v){ onStockInput(it, v); },
+    function(){ normalizeStock(it); });
+  srow.appendChild(f.box);
+  srow.appendChild(el('span','unit','本'));
+  card.appendChild(srow);
+  r.stockInput = f.input;
+
+  var ob = el('div','orderbox');
+  ob.appendChild(el('span','label','発注数'));
+  var onum = el('div','num');
+  var om = el('button', null, '−'); om.type='button'; om.setAttribute('aria-label','発注数を1減らす');
+  r.oval = el('span','oval','0');
+  var op = el('button', null, '＋'); op.type='button'; op.setAttribute('aria-label','発注数を1増やす');
+  onum.appendChild(om); onum.appendChild(r.oval); onum.appendChild(op);
+  ob.appendChild(onum);
+  r.manualTag = el('span','manual','');
+  ob.appendChild(r.manualTag);
+  card.appendChild(ob);
+  om.onclick = function(){ stepOrder(it, -1); };
+  op.onclick = function(){ stepOrder(it, +1); };
+
+  r.expline = el('div','expline');
+  card.appendChild(r.expline);
+
+  r.warn = el('div','inline-warn'); r.warn.style.display='none';
+  card.appendChild(r.warn);
+
+  var det = document.createElement('details');
+  det.appendChild(el('summary','','内訳・消費ペースを見る'));
+  r.meta = el('div','meta');
+  det.appendChild(r.meta);
+  card.appendChild(det);
+
+  syncOrderCard(it);
+  return card;
+}
+
+function syncOrderCard(it){
+  var r = refs[it.id];
+  if (!r) return;
+  var counted = isCounted(it);
+
+  r.pred.textContent = (it.predicted === null) ? '—' : it.predicted;
+  if (it.baseSource === 'none'){
+    r.basis.textContent = '基準データなし';
+  } else if (it.baseSource === 'sheet' && !it.lastCountedLabel){
+    r.basis.textContent = 'シートの在庫 ' + it.baseStock + '本（棚卸するとここが基準日つきになります）';
+  } else {
+    r.basis.textContent = (it.lastCountedLabel || '') 
+      + (it.baseSource === 'stocktake' ? ' 棚卸 ' : ' に ')
+      + it.baseStock + '本 → ' + it.elapsedDays + '日経過';
+  }
+
+  var lv = expLevel(it);
+  r.card.className = 'card' + (lv === 'expired' ? ' expired'
+    : (isLow(it) ? ' alert' : (counted ? '' : ' uncounted')));
+
+  clear(r.expline);
+  var ex = expText(it);
+  var tag = el('span','tag ' + ex.cls, ex.tag);
+  r.expline.appendChild(el('span', null, '使用期限'));
+  r.expline.appendChild(tag);
+  r.expline.appendChild(el('span', null, ex.text));
+
+  var sod = stockoutDaysOf(it);
+  if (!counted && it.predicted === null){
+    r.badge.className = 'badge b-warn'; r.badge.textContent = '要計測';
+  } else if (sod === null){
+    r.badge.className = 'badge b-ok'; r.badge.textContent = counted ? '計測済' : '余裕あり';
+  } else if (sod <= Math.max(3, it.leadDays + 1)){
+    r.badge.className = 'badge b-danger'; r.badge.textContent = 'あと約' + sod + '日';
+  } else {
+    r.badge.className = 'badge b-ok'; r.badge.textContent = 'あと約' + sod + '日';
+  }
+
+  r.oval.textContent = packLabel(it);
+  r.oval.className = 'oval' + (it.packs === 0 ? ' zero' : '');
+  r.manualTag.textContent = it.manual ? '手動調整' : '';
+
+  var w = '';
+  if (counted){
+    var v = Number(it.stock);
+    if (v > Math.max(10, it.target * 3)) w = '目標 ' + it.target + ' 本に対して ' + v + ' 本です。桁を間違えていませんか？';
+    else if (it.predicted !== null && it.predicted - v >= Math.max(3, it.target))
+      w = 'AI予測 ' + it.predicted + ' 本より大幅に少ない実測です。消費が想定より早い可能性があります。';
+  }
+  r.warn.textContent = w;
+  r.warn.style.display = w ? 'block' : 'none';
+
+  clear(r.meta);
+  var eff = effectiveStock(it);
+  var lines = [
+    ['目標在庫', it.target + ' 本（次回発注まで' + state.meta.cycle.cycleDays + '日 + リード'
+      + it.leadDays + '日 + 安全' + it.safetyDays + '日をカバー）'],
+    ['実効の週消費ペース', it.effRate + ' 本/週'
+      + (it.scales ? '（患者' + it.patientCount + '人・基準' + state.meta.patients.base + '人あたり' + it.rate + '本）' : '（患者数連動OFF）')],
+    ['学習状況', it.locked ? '手動固定中' : ('学習' + it.samples + '回'
+      + (it.lastObserved === null || it.lastObserved === undefined ? '' : '・直近実績 ' + it.lastObserved + ' 本/週'))],
+    ['推奨安全日数', it.recommendedSafetyDays + ' 日'
+      + (it.recommendedSafetyDays === it.safetyDays ? '（現在の設定と一致）' : '（この場合の目標は ' + it.targetAtRecommended + ' 本）')
+      + (it.samples < 3 ? ' ※学習' + it.samples + '回なので参考値' : '')],
+    ['使用期限', it.expiryLabel ? (it.expiryLabel + '（' + expText(it).tag + '）') : '未登録'],
+    ['前回発注（入荷見込）', it.receivedSince + ' 本'],
+    ['従来定数ベースなら', Math.max(0, Math.ceil(it.fixedTarget - (eff === null ? 0 : eff))) + ' 本（定数 ' + it.fixedTarget + '）']
+  ];
+  lines.forEach(function(p){
+    var d = el('div');
+    d.appendChild(document.createTextNode(p[0] + '： '));
+    d.appendChild(el('i', null, p[1]));
+    r.meta.appendChild(d);
+  });
+}
+
+/* ---- 棚卸カード ---- */
+function buildTakeCard(it){
+  var card = el('div','card');
+  var r = refs[it.id] = { card: card };
+
+  var title = el('div','title');
+  title.appendChild(el('span', null, it.name));
+  r.badge = el('span','badge');
+  title.appendChild(r.badge);
+  card.appendChild(title);
+
+  var pl = el('div','predline');
+  var left = el('span');
+  left.appendChild(document.createTextNode('理論在庫（システム上） '));
+  r.pred = el('span','big','—');
+  left.appendChild(r.pred);
+  left.appendChild(document.createTextNode(' 本'));
+  pl.appendChild(left);
+  card.appendChild(pl);
+
+  var srow = el('div','row');
+  srow.appendChild(el('span','label','実棚卸数'));
+  var f = numField(it.take, it.name + ' の実棚卸数',
+    function(d){ stepTake(it, d); },
+    function(v){ onTakeInput(it, v); },
+    function(){ normalizeTake(it); }, '未計測');
+  srow.appendChild(f.box);
+  srow.appendChild(el('span','unit','本'));
+  card.appendChild(srow);
+  r.takeInput = f.input;
+
+  r.diffbox = el('div','diffbox');
+  card.appendChild(r.diffbox);
+
+  // 使用期限（棚の手前＝次に使うものの期限を1つだけ）
+  var erow = el('div','row');
+  erow.appendChild(el('span','label','使用期限'));
+  var dinput = document.createElement('input');
+  dinput.type = 'date';
+  dinput.className = 'dateinput';
+  dinput.value = it.expiryDraft || it.expiry || '';
+  dinput.setAttribute('aria-label', it.name + ' の使用期限');
+  erow.appendChild(dinput);
+  card.appendChild(erow);
+  r.expInput = dinput;
+  dinput.onchange = function(){
+    it.expiryDraft = dinput.value || '';
+    syncTakeCard(it); renderSummary(); saveDraft();
+  };
+
+  r.expNote = el('div','expline');
+  card.appendChild(r.expNote);
+
+  syncTakeCard(it);
+  return card;
+}
+
+function syncTakeCard(it){
+  var r = refs[it.id];
+  if (!r) return;
+  r.pred.textContent = (it.predicted === null) ? '—' : it.predicted;
+
+  // 期限の注記
+  if (r.expNote){
+    clear(r.expNote);
+    var cur = it.expiryDraft || it.expiry || '';
+    if (!cur){
+      r.expNote.appendChild(el('span','tag t-none','未登録'));
+      r.expNote.appendChild(el('span', null, '棚の手前（次に使うもの）の期限を入れてください'));
+    } else if (it.expiryDraft && it.expiryDraft !== it.expiry){
+      r.expNote.appendChild(el('span','tag t-warn','変更'));
+      r.expNote.appendChild(el('span', null, (it.expiryLabel || '未登録') + ' → ' + cur.replace(/-/g,'/')));
+    } else {
+      var ex2 = expText(it);
+      r.expNote.appendChild(el('span','tag ' + ex2.cls, ex2.tag));
+      r.expNote.appendChild(el('span', null, ex2.text));
+    }
+  }
+
+  var d = takeDiff(it);
+  clear(r.diffbox);
+  if (d === null){
+    r.card.className = 'card uncounted';
+    r.badge.className = 'badge b-warn'; r.badge.textContent = '未カウント';
+    r.diffbox.appendChild(el('span', null, '棚に並んでいる実数を入力してください'));
+  } else {
+    var big = Math.abs(d) >= 1;
+    r.card.className = 'card' + (big ? ' diff' : '');
+    r.badge.className = 'badge ' + (big ? 'b-purple' : 'b-ok');
+    r.badge.textContent = big ? '差異あり' : '一致';
+    r.diffbox.appendChild(el('span', null, '理論との差異'));
+    var b = el('b', null, (d > 0 ? '+' : '') + d + ' 本');
+    b.style.color = big ? 'var(--purple)' : 'var(--sub)';
+    r.diffbox.appendChild(b);
+  }
+}
+
+/* ---------------- 集計行 ------------------------------------------------ */
+function renderSummary(){
+  var s = $('sum'); clear(s);
+  var btn = $('submit');
+
+  if (state.tab === 'order'){
+    var total = 0, kinds = 0, countedN = 0, parties = {};
+    state.items.forEach(function(it){
+      if (it.packs > 0){ total += orderUnits(it); kinds++; parties[partyOf(it)] = 1; }
+      if (isCounted(it)) countedN++;
+    });
+    var np = Object.keys(parties).length;
+    s.appendChild(el('b', null, total + ' 本'));
+    s.appendChild(document.createTextNode(' / ' + kinds + '品目' + (np ? ' / ' + np + '社' : '')));
+    s.appendChild(document.createElement('br'));
+    s.appendChild(document.createTextNode('計測 ' + countedN + '/' + state.items.length + ' 品目'));
+    btn.textContent = '確定する';
+    btn.className = 'btn';
+  } else {
+    var taken = 0, gaps = 0, exps = 0;
+    state.items.forEach(function(it){
+      if (isTaken(it)) taken++;
+      var d = takeDiff(it);
+      if (d !== null && Math.abs(d) >= 1) gaps++;
+      if (it.expiryDraft) exps++;
+    });
+    s.appendChild(el('b', null, taken + '/' + state.items.length));
+    s.appendChild(document.createTextNode(' 品目カウント済'));
+    s.appendChild(document.createElement('br'));
+    s.appendChild(document.createTextNode('差異 ' + gaps + ' / 期限入力 ' + exps + ' 品目'));
+    btn.textContent = '棚卸を確定';
+    btn.className = 'btn purple';
+  }
+}
+
+/* ---------------- 入力ハンドラ ------------------------------------------ */
+function onStockInput(it, raw){
+  it.stock = raw; it.manual = false; it.packs = suggestPacks(it);
+  syncOrderCard(it); renderSummary(); saveDraft();
+}
+function normalizeStock(it){
+  if (it.stock === '') { syncOrderCard(it); return; }
+  var n = Math.min(9999, Math.max(0, Math.floor(Number(it.stock) || 0)));
+  it.stock = String(n);
+  if (refs[it.id]) refs[it.id].stockInput.value = it.stock;
+  if (!it.manual) it.packs = suggestPacks(it);
+  syncOrderCard(it); renderSummary(); saveDraft();
+}
+function stepStock(it, d){
+  var cur = (it.stock === '') ? (it.predicted === null ? 0 : Math.round(it.predicted)) : Number(it.stock);
+  it.stock = String(Math.max(0, cur + d));
+  if (refs[it.id]) refs[it.id].stockInput.value = it.stock;
+  it.manual = false; it.packs = suggestPacks(it);
+  syncOrderCard(it); renderSummary(); saveDraft();
+}
+/** ＋−は「箱」単位で動きます（入数1の品目なら本単位と同じ） */
+function stepOrder(it, d){
+  it.packs = Math.max(0, (it.packs || 0) + d);
+  it.manual = (it.packs !== suggestPacks(it));
+  syncOrderCard(it); renderSummary(); saveDraft();
+}
+function onTakeInput(it, raw){ it.take = raw; syncTakeCard(it); renderSummary(); saveDraft(); }
+function normalizeTake(it){
+  if (it.take === '') { syncTakeCard(it); return; }
+  var n = Math.min(9999, Math.max(0, Math.floor(Number(it.take) || 0)));
+  it.take = String(n);
+  if (refs[it.id]) refs[it.id].takeInput.value = it.take;
+  syncTakeCard(it); renderSummary(); saveDraft();
+}
+function stepTake(it, d){
+  var cur = (it.take === '') ? (it.predicted === null ? 0 : Math.round(it.predicted)) : Number(it.take);
+  it.take = String(Math.max(0, cur + d));
+  if (refs[it.id]) refs[it.id].takeInput.value = it.take;
+  syncTakeCard(it); renderSummary(); saveDraft();
+}
+
+/* ---------------- 下書き保存（端末内のみ） ------------------------------- */
+function saveDraft(){
+  try{
+    var d = { at: Date.now(), tab: state.tab, items: {} };
+    state.items.forEach(function(it){
+      if (it.stock !== '' || it.take !== '' || it.manual || it.expiryDraft)
+        d.items[it.id] = { s: it.stock, p: it.packs, m: it.manual, t: it.take, e: it.expiryDraft };
+    });
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+  }catch(e){}
+}
+function restoreDraft(){
+  try{
+    var raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+    var d = JSON.parse(raw);
+    if (!d || !d.items) return;
+    if (Date.now() - (d.at || 0) > 1000*60*60*24*3){ localStorage.removeItem(DRAFT_KEY); return; }
+    var n = 0;
+    state.items.forEach(function(it){
+      var v = d.items[it.id];
+      if (!v) return;
+      it.stock = v.s || ''; it.take = v.t || ''; it.packs = v.p || 0; it.manual = !!v.m;
+      it.expiryDraft = v.e || ''; n++;
+    });
+    if (d.tab) state.tab = d.tab;
+    if (n) setTimeout(function(){ toast('入力中だった ' + n + ' 件を復元しました'); }, 400);
+  }catch(e){}
+}
+function clearDraft(){ try{ localStorage.removeItem(DRAFT_KEY); }catch(e){} }
+
+/* ---------------- 確定 --------------------------------------------------- */
+$('submit').onclick = function(){
+  if (state.tab === 'order') openOrderConfirm(false);
+  else openTakeConfirm();
+};
+
+function orderLines(){ return state.items.filter(function(it){ return it.packs > 0; }); }
+
+function orderText(){
+  var docs = buildDocsLocal();
+  var out = ['ENFit PEG 発注リスト（' + state.meta.cycle.label + '）', state.meta.today || '', ''];
+  docs.forEach(function(d){
+    out.push('■ ' + d.party.name);
+    d.rows.forEach(function(r){
+      var q = (r.packSize > 1) ? (r.packs + r.packUnit + '(' + r.units + '本)') : (r.units + '本');
+      out.push('　' + (r.code ? '[' + r.code + '] ' : '') + r.name + '　' + q);
+    });
+    out.push('');
+  });
+  var total = 0;
+  orderLines().forEach(function(it){ total += orderUnits(it); });
+  out.push('合計 ' + orderLines().length + '品目 / ' + total + '本');
+  return out.join('\n');
+}
+
+/** 画面のデータから発注書（発注先ごと）を組み立てる。確定前のプレビュー用 */
+function buildDocsLocal(){
+  var partyMap = {};
+  (state.meta.parties || []).forEach(function(p){ partyMap[p.name] = p; });
+  var groups = {}, names = [];
+  orderLines().forEach(function(it){
+    var key = partyOf(it);
+    if (!groups[key]){ groups[key] = []; names.push(key); }
+    groups[key].push(it);
+  });
+  names.sort();
+  return names.map(function(key){
+    var p = partyMap[key] || { name: key, honorific: '御中', contact:'', tel:'', fax:'', mail:'', address:'' };
+    var rows = groups[key].map(function(it){
+      var price = (it.price === null || it.price === undefined || !(it.price > 0)) ? null : it.price;
+      return {
+        id: it.id, code: it.code || '', name: it.name,
+        vendorId: it.vendorId || '', maker: it.maker || '', spec: it.spec || '',
+        packs: it.packs, packSize: Math.max(1, it.packSize || 1),
+        packUnit: it.packUnit || ((it.packSize > 1) ? '箱' : '本'),
+        units: orderUnits(it), price: price,
+        amount: (price === null) ? null : Math.round(it.packs * price)
+      };
+    });
+    var total = 0, hasAll = true;
+    rows.forEach(function(r){ if (r.amount === null) hasAll = false; else total += r.amount; });
+    return { docNo: '（未確定）', dateLabel: state.meta.today || '', party: p,
+             known: !!partyMap[key], rows: rows, total: hasAll ? total : null, totalPartial: !hasAll };
+  });
+}
+
+function modal(){
+  var root = $('modalRoot');
+  clear(root);
+  var ov = el('div','overlay');
+  var sh = el('div','sheet');
+  ov.appendChild(sh);
+  root.appendChild(ov);
+  ov.onclick = function(e){ if (e.target === ov) clear(root); };
+  return { root: root, sheet: sh, close: function(){ clear(root); } };
+}
+
+function openOrderConfirm(force){
+  var lines = orderLines();
+  var uncounted = state.items.filter(function(it){ return !isCounted(it); }).length;
+  var m = modal();
+
+  m.sheet.appendChild(el('h2','','この内容で発注しますか？'));
+  m.sheet.appendChild(el('div','note',
+    '実測在庫がシートに保存され、発注ログに記録され、消費ペースの学習が更新されます。'));
+
+  if (uncounted > 0){
+    var u = el('div','inline-warn',
+      '未計測が ' + uncounted + ' 品目あります。未計測の品目は在庫が上書きされず、学習にも使われません。');
+    u.style.display = 'block';
+    m.sheet.appendChild(u);
+  }
+
+  var docs = buildDocsLocal();
+  if (!docs.length){
+    var ol0 = el('div','olist');
+    ol0.appendChild(el('div','','発注数が0本のため、記録のみ行われます'));
+    m.sheet.appendChild(ol0);
+  } else {
+    var noParty = docs.filter(function(d){ return !d.known; }).length;
+    if (noParty){
+      var w = el('div','inline-warn',
+        '発注先が未設定の品目があります。品目設定シートの「発注先」列を埋めると、メーカーごとに発注書が分かれます。');
+      w.style.display='block';
+      m.sheet.appendChild(w);
+    }
+    docs.forEach(function(d){
+      m.sheet.appendChild(el('div','note','■ ' + d.party.name
+        + (d.party.fax ? '（FAX ' + d.party.fax + '）' : '')));
+      var ol = el('div','olist');
+      d.rows.forEach(function(r){
+        var row = el('div');
+        row.appendChild(el('span', null, r.name));
+        row.appendChild(el('b', null, (r.packSize > 1)
+          ? (r.packs + r.packUnit + '（' + r.units + '本）') : (r.units + ' 本')));
+        ol.appendChild(row);
+      });
+      m.sheet.appendChild(ol);
+    });
+  }
+
+  var lab = el('label','toggle');
+  var cb = document.createElement('input');
+  cb.type='checkbox'; cb.checked = state.meta.assumeReceivedDefault !== false;
+  var txt = el('div');
+  txt.appendChild(document.createTextNode('前回発注した分は入荷済みです'));
+  txt.appendChild(el('small','','消費ペースの学習に使います。まだ届いていない品がある場合はチェックを外してください（今回は学習をスキップします）。'));
+  lab.appendChild(cb); lab.appendChild(txt);
+  m.sheet.appendChild(lab);
+
+  var acts = el('div','actions');
+  var cancel = el('button','btn ghost','戻る'); cancel.type='button';
+  var okBtn = el('button','btn','確定して記録'); okBtn.type='button';
+  acts.appendChild(cancel); acts.appendChild(okBtn);
+  m.sheet.appendChild(acts);
+
+  var acts2 = el('div','actions');
+  var prevBtn = el('button','btn ghost','発注書プレビュー'); prevBtn.type='button';
+  var copyBtn = el('button','btn ghost','リストをコピー'); copyBtn.type='button';
+  acts2.appendChild(prevBtn); acts2.appendChild(copyBtn);
+  m.sheet.appendChild(acts2);
+
+  cancel.onclick = m.close;
+  prevBtn.onclick = function(){
+    var dd = buildDocsLocal();
+    if (!dd.length){ toast('発注数が0本です', true); return; }
+    openPrint(dd, state.meta.facility, { draft: true });
+  };
+  copyBtn.onclick = function(){ copyText(orderText()); };
+  okBtn.onclick = function(){
+    okBtn.disabled = true; cancel.disabled = true; okBtn.textContent = '保存中…';
+    doSaveOrder(cb.checked, force, function(){
+      okBtn.disabled=false; cancel.disabled=false; okBtn.textContent='確定して記録';
+    });
+  };
+}
+
+function openTakeConfirm(){
+  var taken = state.items.filter(isTaken);
+  var gaps = state.items.map(function(it){ return { it: it, d: takeDiff(it) }; })
+    .filter(function(x){ return x.d !== null && Math.abs(x.d) >= 1; })
+    .sort(function(a,b){ return Math.abs(b.d) - Math.abs(a.d); });
+
+  if (!taken.length){ toast('実棚卸数が1件も入力されていません', true); return; }
+
+  var m = modal();
+  m.sheet.appendChild(el('h2','','棚卸を確定しますか？'));
+  m.sheet.appendChild(el('div','note',
+    taken.length + '/' + state.items.length + ' 品目をカウント済み。'
+    + '棚卸した数がそのまま次回以降の在庫の基準になり、消費ペースの学習にも反映されます。'));
+
+  if (taken.length < state.items.length){
+    var u = el('div','inline-warn',
+      '未カウントが ' + (state.items.length - taken.length) + ' 品目あります。未カウントの品目は記録されず、基準も更新されません。');
+    u.style.display='block';
+    m.sheet.appendChild(u);
+  }
+
+  var expN = state.items.filter(function(x){ return x.expiryDraft; }).length;
+  if (expN) m.sheet.appendChild(el('div','note','使用期限を ' + expN + ' 品目ぶん更新します。'));
+
+  if (gaps.length){
+    m.sheet.appendChild(el('div','note','理論在庫との差異が大きい品目：'));
+    var ol = el('div','olist');
+    gaps.slice(0, 12).forEach(function(x){
+      var d = el('div');
+      d.appendChild(el('span', null, x.it.name));
+      d.appendChild(el('b', null, (x.d > 0 ? '+' : '') + x.d + ' 本（理論 ' + x.it.predicted + ' → 実 ' + x.it.take + '）'));
+      ol.appendChild(d);
+    });
+    m.sheet.appendChild(ol);
+  } else {
+    m.sheet.appendChild(el('div','note','理論在庫との大きな差異はありませんでした。'));
+  }
+
+  var acts = el('div','actions');
+  var cancel = el('button','btn ghost','戻る'); cancel.type='button';
+  var okBtn = el('button','btn purple','棚卸を確定'); okBtn.type='button';
+  acts.appendChild(cancel); acts.appendChild(okBtn);
+  m.sheet.appendChild(acts);
+
+  cancel.onclick = m.close;
+  okBtn.onclick = function(){
+    okBtn.disabled = true; cancel.disabled = true; okBtn.textContent = '保存中…';
+    doSaveStocktake(function(){ okBtn.disabled=false; cancel.disabled=false; okBtn.textContent='棚卸を確定'; });
+  };
+}
+
+function doSaveOrder(assumeReceived, force, done){
+  if (state.saving) return;
+  state.saving = true;
+  $('submit').disabled = true;
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      state.saving = false;
+      if (res && res.needsConfirm){
+        done && done();
+        if (window.confirm(res.message)) doSaveOrder(assumeReceived, true, done);
+        else $('submit').disabled = false;
+        return;
+      }
+      clearDraft();
+      state.items.forEach(function(it){ it.stock=''; it.packs=0; it.manual=false; });
+      showResult(res);
+    })
+    .withFailureHandler(function(e){
+      state.saving = false; $('submit').disabled = false; done && done();
+      toast('保存できませんでした：' + e.message, true);
+      banner('保存に失敗しました。入力内容は端末に残っています。通信状況を確認してもう一度お試しください。（' + e.message + '）');
+    })
+    .saveOrder({
+      assumeReceived: assumeReceived, force: !!force,
+      items: state.items.map(function(it){
+        return { id: it.id, stock: (it.stock === '' ? null : Number(it.stock)), packs: it.packs || 0 };
+      })
+    });
+}
+
+function doSaveStocktake(done){
+  if (state.saving) return;
+  state.saving = true;
+  $('submit').disabled = true;
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      state.saving = false;
+      clearDraft();
+      state.items.forEach(function(it){ it.take=''; it.expiryDraft=''; });
+      showResult(res);
+    })
+    .withFailureHandler(function(e){
+      state.saving = false; $('submit').disabled = false; done && done();
+      toast('保存できませんでした：' + e.message, true);
+      banner('棚卸の保存に失敗しました。入力内容は端末に残っています。（' + e.message + '）');
+    })
+    .saveStocktake({
+      items: state.items.filter(isTaken).map(function(it){
+        return { id: it.id, counted: Number(it.take), expiry: it.expiryDraft || null };
+      })
+    });
+}
+
+function showResult(res){
+  var m = modal();
+  var isTake = res.mode === 'stocktake';
+  m.sheet.appendChild(el('h2','', isTake ? '棚卸を記録しました' : '発注を確定しました'));
+
+  if (isTake){
+    m.sheet.appendChild(el('div','note',
+      res.summary.savedAt + ' ／ ' + res.summary.counted + '/' + res.summary.total + ' 品目 ／ 差異合計 '
+      + (res.summary.totalDiff > 0 ? '+' : '') + res.summary.totalDiff + ' 本'
+      + (res.summary.expiryUpdated ? ' ／ 使用期限 ' + res.summary.expiryUpdated + '件更新' : '')));
+    if (res.variances && res.variances.length){
+      m.sheet.appendChild(el('div','note','差異が出た品目（記録済み）：'));
+      var ol = el('div','olist');
+      res.variances.forEach(function(v){
+        var d = el('div');
+        d.appendChild(el('span', null, v.name));
+        d.appendChild(el('b', null, (v.diff > 0 ? '+' : '') + v.diff + ' 本'));
+        ol.appendChild(d);
+      });
+      m.sheet.appendChild(ol);
+    }
+    m.sheet.appendChild(el('div','note','次回の棚卸は約' + res.summary.nextDue + '日後です。'));
+  } else {
+    m.sheet.appendChild(el('div','note',
+      res.summary.savedAt + ' ／ 合計 ' + res.summary.totalOrder + '本 ／ 計測 ' + res.summary.counted + '品目 ／ 患者 '
+      + res.summary.patients + '人'));
+    if (res.learned && res.learned.length){
+      m.sheet.appendChild(el('div','note','消費ペースを更新しました：'));
+      var ol2 = el('div','olist');
+      res.learned.forEach(function(l){
+        var d = el('div');
+        d.appendChild(el('span', null, l.name));
+        d.appendChild(el('b', null, l.from + ' → ' + l.to + ' 本/週'));
+        ol2.appendChild(d);
+      });
+      m.sheet.appendChild(ol2);
+    } else {
+      m.sheet.appendChild(el('div','note','今回は消費ペースの更新はありませんでした（計測間隔が短い・未計測など）。'));
+    }
+  }
+
+  if (!isTake){
+    if (res.documents && res.documents.length){
+      m.sheet.appendChild(el('div','note',
+        '発注書を ' + res.documents.length + ' 件（発注先ごと）作成しました：'
+        + res.documents.map(function(d){ return d.docNo; }).join(' / ')));
+      var pacts = el('div','actions');
+      var printBtn = el('button','btn','🖨 発注書を印刷'); printBtn.type='button';
+      pacts.appendChild(printBtn);
+      m.sheet.appendChild(pacts);
+      printBtn.onclick = function(){ openPrint(res.documents, res.facility, {}); };
+    }
+    var acts = el('div','actions');
+    var copyBtn = el('button','btn ghost','リストをコピー'); copyBtn.type='button';
+    var mailBtn = el('button','btn ghost','自分にメール'); mailBtn.type='button';
+    acts.appendChild(copyBtn); acts.appendChild(mailBtn);
+    m.sheet.appendChild(acts);
+    var text = lastOrderTextFromDocs(res.documents);
+    copyBtn.onclick = function(){ copyText(text); };
+    mailBtn.onclick = function(){
+      mailBtn.disabled = true;
+      google.script.run
+        .withSuccessHandler(function(to){ mailBtn.disabled=false; toast(to + ' に送信しました'); })
+        .withFailureHandler(function(e){ mailBtn.disabled=false; toast('送信できませんでした：' + e.message, true); })
+        .emailOrderList('ENFit PEG 発注リスト ' + (state.meta.today||''), text);
+    };
+  }
+
+  var acts2 = el('div','actions');
+  var closeBtn = el('button','btn','画面を更新して閉じる'); closeBtn.type='button';
+  acts2.appendChild(closeBtn);
+  m.sheet.appendChild(acts2);
+  closeBtn.onclick = function(){
+    m.close();
+    if (isTake) state.tab = 'order';
+    clear($('list'));
+    $('list').appendChild(el('div','skeleton'));
+    boot();
+  };
+}
+
+/* =======================================================================
+   発注書（画面プレビュー / 印刷）
+   ======================================================================= */
+
+/** 確定後：サーバーが返した発注書からコピー用テキストを作る */
+function lastOrderTextFromDocs(docs){
+  if (!docs || !docs.length) return orderText();
+  var out = ['ENFit PEG 発注リスト', state.meta.today || '', ''];
+  docs.forEach(function(d){
+    out.push('■ ' + d.party.name + '（発注書番号 ' + d.docNo + '）');
+    d.rows.forEach(function(r){
+      var q = (r.packSize > 1) ? (r.packs + r.packUnit + '(' + r.units + '本)') : (r.units + '本');
+      out.push('　' + (r.code ? '[' + r.code + '] ' : '') + r.name + '　' + q);
+    });
+    out.push('');
+  });
+  return out.join('\n');
+}
+
+/** 小さな表組みヘルパー */
+function td(cls, text){ var n = el('td', cls); n.textContent = (text === null || text === undefined) ? '' : String(text); return n; }
+function th(text, w){ var n = el('th', null, text); if (w) n.style.width = w; return n; }
+
+/** 1社ぶんの発注書（A4 1枚） */
+function buildOrderPaper(doc, fac, opts){
+  var showMoney = fac && fac.showAmount !== false && doc.rows.some(function(r){ return r.price !== null; });
+  var paper = el('div','paper');
+
+  var head = el('div','p-head');
+  var hl = el('div');
+  if (opts.draft) hl.appendChild(el('div', null, '※ 未確定のプレビューです'));
+  head.appendChild(hl);
+  var hr = el('div');
+  hr.style.textAlign = 'right';
+  hr.appendChild(el('div', null, '発注書番号： ' + (doc.docNo || '—')));
+  hr.appendChild(el('div', null, '発注日： ' + (doc.dateLabel || '')));
+  head.appendChild(hr);
+  paper.appendChild(head);
+
+  paper.appendChild(el('div','p-title','発注書'));
+
+  var cols = el('div','p-cols');
+
+  var to = el('div','p-to');
+  to.appendChild(el('div','name', doc.party.name + '　' + (doc.party.honorific || '御中')));
+  var sub = el('div','sub');
+  if (doc.party.contact) sub.appendChild(el('div', null, '担当： ' + doc.party.contact + ' 様'));
+  if (doc.party.fax)     sub.appendChild(el('div', null, 'FAX： ' + doc.party.fax));
+  if (doc.party.tel)     sub.appendChild(el('div', null, 'TEL： ' + doc.party.tel));
+  to.appendChild(sub);
+  cols.appendChild(to);
+
+  var from = el('div','p-from');
+  from.appendChild(el('div','fname', (fac && fac.name) || ''));
+  if (fac && fac.dept)    from.appendChild(el('div', null, fac.dept));
+  if (fac && fac.address) from.appendChild(el('div', null, fac.address));
+  if (fac && fac.tel)     from.appendChild(el('div', null, 'TEL： ' + fac.tel));
+  if (fac && fac.fax)     from.appendChild(el('div', null, 'FAX： ' + fac.fax));
+  if (fac && fac.person)  from.appendChild(el('div', null, '担当： ' + fac.person));
+  from.appendChild(el('div','p-seal','印'));
+  cols.appendChild(from);
+  paper.appendChild(cols);
+
+  paper.appendChild(el('div','p-lead','下記のとおり発注いたします。ご手配のほどよろしくお願いいたします。'));
+
+  if (!doc.known){
+    paper.appendChild(el('div','p-warn',
+      '※ この発注先は「発注先」シートに登録されていません。宛先・FAX番号を確認してください。'));
+  }
+
+  var tbl = el('table','p-tbl');
+  var thead = el('thead'), trh = el('tr');
+  trh.appendChild(th('No', '9mm'));
+  trh.appendChild(th('品番', '30mm'));
+  trh.appendChild(th('品名・規格'));
+  trh.appendChild(th('数量', '20mm'));
+  trh.appendChild(th('単位', '14mm'));
+  if (showMoney){ trh.appendChild(th('単価', '24mm')); trh.appendChild(th('金額', '24mm')); }
+  thead.appendChild(trh); tbl.appendChild(thead);
+
+  var tbody = el('tbody');
+  doc.rows.forEach(function(r, i){
+    var tr = el('tr');
+    tr.appendChild(td('n', i + 1));
+    tr.appendChild(td('code', r.code || ''));
+    var nameCell = el('td');
+    nameCell.appendChild(document.createTextNode(r.name));
+    if (r.packSize > 1){
+      var inner = el('div','', '（' + r.packSize + '本入 × ' + r.packs + r.packUnit + ' ＝ ' + r.units + '本）');
+      inner.style.fontSize = '8.5pt'; inner.style.color = '#333';
+      nameCell.appendChild(inner);
+    }
+    tr.appendChild(nameCell);
+    tr.appendChild(td('qty', (r.packSize > 1) ? r.packs : r.units));
+    tr.appendChild(td('unit', (r.packSize > 1) ? (r.packUnit || '箱') : '本'));
+    if (showMoney){
+      tr.appendChild(td('money', r.price === null ? '' : yen(r.price)));
+      tr.appendChild(td('money', r.amount === null ? '' : yen(r.amount)));
+    }
+    tbody.appendChild(tr);
+  });
+  // 記入欄を最低8行まで確保（手書き追記できるように）
+  for (var k = doc.rows.length; k < 8; k++){
+    var blank = el('tr');
+    blank.appendChild(td('n', k + 1));
+    blank.appendChild(td('code',''));
+    blank.appendChild(td('',''));
+    blank.appendChild(td('qty',''));
+    blank.appendChild(td('unit',''));
+    if (showMoney){ blank.appendChild(td('money','')); blank.appendChild(td('money','')); }
+    tbody.appendChild(blank);
+  }
+  if (showMoney){
+    var tot = el('tr','total');
+    var lab = el('td','', '合　計');
+    lab.colSpan = 6;
+    tot.appendChild(lab);
+    tot.appendChild(td('money', doc.total === null ? '（単価未設定あり）' : yen(doc.total)));
+    tbody.appendChild(tot);
+  }
+  tbl.appendChild(tbody);
+  paper.appendChild(tbl);
+
+  if (showMoney && doc.totalPartial){
+    var pn = el('div','p-foot','※ 単価が未登録の品目があるため、合計金額は一部のみです。');
+    paper.appendChild(pn);
+  }
+
+  var note = el('div','p-note');
+  note.appendChild(el('div', null, '備考'));
+  note.appendChild(el('div','box',''));
+  paper.appendChild(note);
+
+  return paper;
+}
+
+/**
+ * 取引先様式の発注書（現在お使いの紙に合わせた2段組み）
+ *
+ *   商品名     |  商品コード  |  数量      | 単価 | 金額
+ *   規格       |  販売元      |  商品ID    |      | 明細備考
+ *
+ * の2段を1品目として並べます。
+ */
+function buildOrderPaperVendor(doc, fac, opts){
+  var showMoney = fac && fac.showAmount !== false && doc.rows.some(function(r){ return r.price !== null; });
+  var paper = el('div','paper');
+
+  // 右上の押印欄
+  var stamp = el('div','p-stamp');
+  stamp.appendChild(el('div')); stamp.appendChild(el('div'));
+  paper.appendChild(stamp);
+
+  paper.appendChild(el('div','p-title','発注書'));
+
+  var head = el('div','p-head2');
+
+  var to = el('div','p-to2');
+  to.appendChild(el('div','nm', doc.party.name + (doc.party.honorific || '様')));
+  var tel = [];
+  if (doc.party.tel) tel.push('Tel：' + doc.party.tel);
+  if (doc.party.fax) tel.push('Fax：' + doc.party.fax);
+  if (tel.length) to.appendChild(el('div','ln', tel.join('／')));
+  if (doc.party.contact) to.appendChild(el('div','ln', '担当：' + doc.party.contact + ' 様'));
+  head.appendChild(to);
+
+  var from = el('div','p-from2');
+  from.appendChild(el('div','dt', doc.dateLabel || ''));
+  from.appendChild(el('div','fn', ((fac && fac.name) || '') + ((fac && fac.dept) ? '　' + fac.dept : '')));
+  if (fac && fac.address) from.appendChild(el('div', null, fac.address));
+  var ft = [];
+  if (fac && fac.tel) ft.push('Tel：' + fac.tel);
+  if (fac && fac.fax) ft.push('Fax：' + fac.fax);
+  if (ft.length) from.appendChild(el('div', null, ft.join('／')));
+  if (fac && fac.person) from.appendChild(el('div', null, '担当：' + fac.person));
+  if (doc.docNo) from.appendChild(el('div', null, '発注書番号：' + doc.docNo));
+  head.appendChild(from);
+  paper.appendChild(head);
+
+  paper.appendChild(el('hr','p-rule'));
+
+  if (opts.draft) {
+    var dm = el('div','p-foot','※ 未確定のプレビューです');
+    dm.style.textAlign = 'left';
+    paper.appendChild(dm);
+  }
+  if (!doc.known){
+    paper.appendChild(el('div','p-warn',
+      '※ この発注先は「発注先」シートに登録されていません。宛先・FAX番号を確認してください。'));
+  }
+
+  var tbl = el('table','p-two');
+  var thead = el('thead'), trh = el('tr');
+  function th2(top, bottom, w){
+    var n = el('th');
+    n.appendChild(document.createTextNode(top));
+    if (bottom) n.appendChild(el('span','b', bottom));
+    if (w) n.style.width = w;
+    return n;
+  }
+  trh.appendChild(th2('', '', '7mm'));
+  trh.appendChild(th2('商品名', '規格'));
+  trh.appendChild(th2('商品コード', '販売元', '42mm'));
+  trh.appendChild(th2('数量', '商品ID', '31mm'));
+  if (showMoney){
+    trh.appendChild(th2('単価', '', '16mm'));
+    trh.appendChild(th2('金額', '明細備考', '26mm'));
+  }
+  thead.appendChild(trh); tbl.appendChild(thead);
+
+  var tbody = el('tbody');
+  function cell2(top, bottom, cls){
+    var n = el('td', cls || null);
+    n.appendChild(document.createTextNode(top === null || top === undefined ? '' : String(top)));
+    if (bottom) n.appendChild(el('span','b', bottom));
+    return n;
+  }
+  doc.rows.forEach(function(r, i){
+    var tr = el('tr', 'item' + (i === 0 ? ' first' : ''));
+    tr.appendChild(cell2(i + 1, '', 'n'));
+    tr.appendChild(cell2(r.name, r.spec || ''));
+    tr.appendChild(cell2(r.code || '', r.maker || ''));
+    var q = (r.packSize > 1)
+      ? (r.packs + (r.packUnit || '箱') + ' ×' + r.packSize + '本入')
+      : (r.units + '本');
+    tr.appendChild(cell2(q, r.vendorId || '', 'qty'));
+    if (showMoney){
+      tr.appendChild(cell2(r.price === null ? '' : yen(r.price), '', 'price'));
+      tr.appendChild(cell2(r.amount === null ? '' : yen(r.amount), '', 'money'));
+    }
+    tbody.appendChild(tr);
+  });
+
+  if (showMoney){
+    var sum = el('tr','sum');
+    var lab = el('td','', '合計');
+    lab.colSpan = 5;
+    sum.appendChild(lab);
+    sum.appendChild(cell2(doc.total === null ? '（単価未設定あり）' : yen(doc.total), '', 'money'));
+    tbody.appendChild(sum);
+  } else {
+    var sum2 = el('tr','sum');
+    var lab2 = el('td','', '合計 ' + doc.rows.length + ' 品目');
+    lab2.colSpan = 4;
+    sum2.appendChild(lab2);
+    tbody.appendChild(sum2);
+  }
+  tbl.appendChild(tbody);
+  paper.appendChild(tbl);
+
+  if (showMoney && doc.totalPartial){
+    paper.appendChild(el('div','p-foot','※ 単価が未登録の品目があるため、合計金額は一部のみです。'));
+  }
+  return paper;
+}
+
+/** FAX送付状（1枚目） */
+function buildFaxCover(docs, fac, totalPages){
+  var d0 = docs[0];
+  var paper = el('div','paper');
+  paper.appendChild(el('div','p-title','FAX送信票'));
+
+  var g = el('table','fax-grid');
+  function grow(k, v){
+    var tr = el('tr');
+    var h = el('th', null, k);
+    var c = el('td', null, v || '');
+    tr.appendChild(h); tr.appendChild(c); g.appendChild(tr);
+  }
+  grow('宛　先', d0.party.name + '　' + (d0.party.honorific || '御中')
+       + (d0.party.contact ? '　' + d0.party.contact + ' 様' : ''));
+  grow('FAX番号', d0.party.fax || '（未登録）');
+  grow('差出人', ((fac && fac.name) || '') + ((fac && fac.dept) ? '　' + fac.dept : '')
+       + ((fac && fac.person) ? '　' + fac.person : ''));
+  grow('TEL / FAX', ((fac && fac.tel) || '—') + ' / ' + ((fac && fac.fax) || '—'));
+  grow('送信日', d0.dateLabel || '');
+  grow('枚　数', '本紙を含めて ' + totalPages + ' 枚');
+  grow('件　名', 'ENFit PEG 関連資材 発注の件（発注書番号 ' + (d0.docNo || '—') + '）');
+  paper.appendChild(g);
+
+  var msg = el('div','fax-msg');
+  msg.appendChild(el('div', null, 'いつもお世話になっております。'));
+  msg.appendChild(el('div', null, '次ページのとおり発注いたしますので、ご手配のほどよろしくお願いいたします。'));
+  msg.appendChild(el('div', null, ''));
+  msg.appendChild(el('div', null, '内容に不備がございましたら、上記までご連絡ください。'));
+  paper.appendChild(msg);
+
+  return paper;
+}
+
+/**
+ * 発注書を画面に開く。
+ * 発注先ごとに「FAX送付状 → 発注書」の順で並べ、各紙が1ページになるよう改ページします。
+ */
+function openPrint(docs, fac, opts){
+  opts = opts || {};
+  var root = $('printRoot');
+  clear(root);
+
+  var bar = el('div','printbar');
+  var printBtn = el('button','btn','🖨 印刷する'); printBtn.type='button';
+  var closeBtn = el('button','btn close','閉じる'); closeBtn.type='button';
+  bar.appendChild(printBtn); bar.appendChild(closeBtn);
+  root.appendChild(bar);
+
+  var withCover = !!(fac && fac.coverSheet);
+  var hint = el('div','printhint',
+    '発注先ごとに ' + (withCover ? 'FAX送付状＋発注書の2枚' : '発注書1枚') + '、'
+    + '合計 ' + docs.length * (withCover ? 2 : 1) + 'ページです。'
+    + (opts.draft ? ' ／ これは確定前のプレビューです（発注書番号は確定時に採番されます）。' : ''));
+  root.appendChild(hint);
+
+  var vendorStyle = (state.meta.docLayout !== '標準');
+  docs.forEach(function(d){
+    if (withCover) root.appendChild(buildFaxCover([d], fac, 2));
+    root.appendChild(vendorStyle ? buildOrderPaperVendor(d, fac, opts) : buildOrderPaper(d, fac, opts));
+  });
+
+  document.body.classList.add('printing');
+  printBtn.onclick = function(){
+    try { window.focus(); } catch(e){}
+    window.print();
+  };
+  closeBtn.onclick = function(){
+    document.body.classList.remove('printing');
+    clear(root);
+  };
+}
+
+/** 過去の発注書を選んで再印刷 */
+function openPastDocuments(){
+  var m = modal();
+  m.sheet.appendChild(el('h2','','過去の発注書'));
+  m.sheet.appendChild(el('div','note','読み込み中…'));
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      clear(m.sheet);
+      m.sheet.appendChild(el('h2','','過去の発注書'));
+      if (!res.batches || !res.batches.length){
+        m.sheet.appendChild(el('div','note','まだ発注書がありません。発注を確定すると、ここから何度でも印刷し直せます。'));
+      } else {
+        m.sheet.appendChild(el('div','note','発注ログから作り直すので、いつでも同じ発注書を印刷できます。'));
+        res.batches.forEach(function(b){
+          var ol = el('div','olist');
+          b.docs.forEach(function(d){
+            var row = el('div');
+            row.appendChild(el('span', null, d.docNo + '　' + d.party.name));
+            row.appendChild(el('b', null, d.rows.length + '品目'));
+            ol.appendChild(row);
+          });
+          m.sheet.appendChild(el('div','note','■ ' + b.atLabel));
+          m.sheet.appendChild(ol);
+          var a = el('div','actions');
+          var btn = el('button','btn ghost','この日の発注書を印刷'); btn.type='button';
+          btn.onclick = function(){ m.close(); openPrint(b.docs, res.facility, {}); };
+          a.appendChild(btn);
+          m.sheet.appendChild(a);
+        });
+      }
+      var a2 = el('div','actions');
+      var c = el('button','btn','閉じる'); c.type='button';
+      c.onclick = m.close;
+      a2.appendChild(c);
+      m.sheet.appendChild(a2);
+    })
+    .withFailureHandler(function(e){
+      clear(m.sheet);
+      m.sheet.appendChild(el('h2','','過去の発注書'));
+      m.sheet.appendChild(el('div','note','読み込めませんでした：' + e.message));
+      var a3 = el('div','actions');
+      var c3 = el('button','btn','閉じる'); c3.type='button';
+      c3.onclick = m.close;
+      a3.appendChild(c3);
+      m.sheet.appendChild(a3);
+    })
+    .getPastDocuments(5);
+}
+
+/* クリップボード（GASのiframeで clipboard API が使えない場合の代替つき） */
+function copyText(text){
+  var done = function(){ toast('発注リストをコピーしました'); };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done, fallback);
+  } else fallback();
+  function fallback(){
+    try{
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, text.length);
+      var okc = document.execCommand('copy');
+      document.body.removeChild(ta);
+      okc ? done() : toast('コピーできませんでした。長押しで選択してください。', true);
+    }catch(e){ toast('コピーできませんでした。', true); }
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
